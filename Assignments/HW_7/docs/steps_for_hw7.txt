@@ -1,0 +1,520 @@
+In this assignment, you will explore a set of 100,000 Wikipedia documents: 100KWikiText.txtLinks to an external site., in which each line consists of the plain text extracted from an individual Wikipedia document. On the AWS VM instances you created in HW3, do the following:
+
+Configure and run a stable release of Apache Hadoop in the pseudo-distributed mode.
+Develop a MapReduce-based approach in your Hadoop system to compute the relative frequencies of each word that occurs in all the documents in 100KWikiText.txt, and output the top 100 word pairs sorted in a decreasing order of relative frequency. The relative frequency (RF) of word B given word A is defined as RF(B|A) = count(A,B) / count(A), where count(A,B) is the number of times A and B co-occur in the entire document collection, and count(A) is the number of times A occurs with anything else. Intuitively, given a document collection, the relative frequency captures the proportion of time the word B appears in the same document as A.
+Repeat the above steps using at least 2 VM instances in your Hadoop system running in the fully-distributed mode.
+Note: It is not meaningful to consider a word (A) that appears rarely in the entire document. Hence, you need to first rank all words according to their use frequencies (using WordCount) and then consider only top 100 words for the RF calculation of their pairs.
+
+Submission requirements: A zipped file that contains
+
+A commands.txt text file that lists all the commands you used to run your code and produce the required results in both pseudo and fully distributed modes
+A top100.txt text file that stores the final results (only the top 100 word pairs sorted in a decreasing order of relative frequency)
+The source code of your MapReduce solution (including the JAR file)
+An algorithm.txt text file that describes the algorithm you used to solve the problem
+A settings.txt text file that describes:
+the input/output format in each Hadoop task, i.e., the keys for the mappers and reducers
+the Hadoop cluster settings you used, i.e., number of VM instances, number of mappers and reducers, etc.
+the running time for your MapReduce approach in both pseudo and fully distributed modes
+
+###################################
+Create 2 instances
+###################################
+1. Launch EC2 linux instance using Amazon Linux AMI from AWS console, whose names are as follows:
+
+psuedonode
+
+2. Attention, these instances should be in the same Internet group with all traffic.
+
+
+###################################
+Passphrase-less SSH
+###################################
+
+1. Open Putty to connect to instance
+2. Generate a pair of authentication keys on each instance using:
+
+ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+
+3. Append each instance's public key(id_rsa.pub) to other instances' authorized_keys
+
+cat ~/.ssh/id_rsa.pub
+
+vim ~/.ssh/authorized_keys
+
+
+=========MINE==================
+
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDCgKNvrslh1/YGNwsBgSpt9mInqkm2fRy85QK1hxWFaL8Gzl5pHtZnnxO6eWiKUQvtelDwBubQ7L+woqyfc9bQaInU7ZgPoWy80OEb3/qt0f3Ube9otLaXunWAjr7JVinrC2tZh/ABmlebjgdBJn9pELiGM9UeWxtCOPvg5m2oitWxNbOj4rMd2Fk9SpxjXnCMaDbDAC8Kb7sljmRMXTRlidj0SYZJBmyZ6++xEqW8gJHAQlQT21PPWDb1lDdL+Nap5XeKNcoIom90k8rknU+yHk5R2UDleqcpnYj1DuA4kBp5FvyAiYRYcj66Nj464YvOCqaIPNUVF2lPDnS/xcSaImL52aKXO0HKi3VJHGKxpOXPwU3zF8zhDSBVNtgswy3jZbrO6GMgNNDGXherNr4FAjdZ6447cwl0EidzVdIsqbnyX/FaLaqQaQ2Y2j2X8XB/VLXctPkytuvzjwWYJJkwCQ5ci/N+d5OuWED3wTQ8hQnH1WKsBzZIyG6z36u4UWE= ubuntu@ip-172-31-8-74
+
+
+
+4. For psuedo instance:
+sudo vim /etc/hosts
+
+add the content:
+
+==============MINE================
+172.31.8.74 - master
+ip-172-31-8-74.ec2.internal
+====================================
+
+5. Then try ssh localhost for example, we are done.
+
+##################################################
+hadoop installation on psuedonode
+##################################################
+
+1. Ubuntu don't have java. Install java above
+
+sudo apt-get update
+sudo apt-get install openjdk-8-jdk
+
+Here you could use the follow command to see the java home path
+
+ls /usr/lib/jvm
+
+vim ~/.bash_profile
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+source ~/.bash_profile
+
+2. Download and install hadoop-2.6.5 on the master node
+
+cd ~
+
+wget https://archive.apache.org/dist/hadoop/common/hadoop-2.6.5/hadoop-2.6.5.tar.gz
+
+tar -xvzf hadoop-2.6.5.tar.gz 
+
+3. For psuedo, same instance config
+
+vim ~/.bash_profile
+
+export HADOOP_HOME=/home/ubuntu/hadoop-2.6.5
+export PATH=$PATH:$HADOOP_HOME/bin
+export PATH=$PATH:$HADOOP_HOME/sbin
+export HADOOP_MAPRED_HOME=$HADOOP_HOME
+export HADOOP_COMMON_HOME=$HADOOP_HOME
+export HADOOP_HDFS_HOME=$HADOOP_HOME
+export YARN_HOME=$HADOOP_HOME
+
+
+source ~/.bash_profile
+
+
+4. Configuration of Hadoop 
+cd hadoop-2.6.5/etc/hadoop/
+
+vim core-site.xml
+
+<configuration>
+  <property>
+      <name>fs.defaultFS</name>
+      <value>hdfs://master:9000</value>
+  </property>
+  <property>
+      <name>hadoop.tmp.dir</name>
+      <value>file:/home/ubuntu/hadoop-2.6.5/tmp</value>  
+  </property>
+</configuration>
+
+
+vim hdfs-site.xml
+
+<configuration>
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:/home/ubuntu/hadoop-2.6.5/dfs/name</value>
+    </property>
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>file:/home/ubuntu/hadoop-2.6.5/dfs/data</value>
+    </property>
+    <property>
+        <name>dfs.replication</name>
+        <value>1</value>
+    </property>
+</configuration>
+
+
+sudo vim mapred-site.xml
+
+<configuration>
+    <property>
+        <name>mapreduce.framework.name</name>
+        <value>yarn</value>
+    </property>
+    <property>
+        <name>mapreduce.map.memory.mb</name>
+        <value>512</value>
+    </property>
+    <property>
+        <name>mapreduce.reduce.memory.mb</name>
+        <value>512</value>
+    </property>
+</configuration>
+
+
+sudo vim yarn-site.xml
+
+<configuration>
+     <property>
+         <name>yarn.nodemanager.aux-services</name>
+         <value>mapreduce_shuffle</value>
+     </property>
+     <property>
+         <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+         <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.address</name>
+         <value>master:8032</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.scheduler.address</name>
+         <value>master:8030</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.resource-tracker.address</name>
+         <value>master:8035</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.admin.address</name>
+         <value>master:8033</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.webapp.address</name>
+         <value>master:8088</value>
+     </property>
+</configuration>
+
+
+vim hadoop-env.sh
+
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export HADOOP_PREFIX=/home/ubuntu/hadoop-2.6.5 
+
+export HADOOP_CONF_DIR=/home/ubuntu/hadoop-2.6.5/etc/hadoop/
+export HADOOP_HOME=/home/ubuntu/hadoop-2.6.5
+
+export CLASSPATH=$CLASSPATH:$HADOOP_HOME/share/hadoop/*/lib/*.jar
+export CLASSPATH=$CLASSPATH:$HADOOP_HOME/share/hadoop/*/*.jar
+
+
+source hadoop-env.sh
+
+vim master
+master
+
+mkdir -p /home/ubuntu/hadoop-2.6.5/dfs/name
+mkdir -p /home/ubuntu/hadoop-2.6.5/dfs/data
+
+##################################################
+Start Hadoop and Test
+##################################################
+
+1. Change to hadoop directory:
+
+cd $HADOOP_HOME
+
+
+2. Fist we need to format the namenode:
+
+bin/hdfs namenode -format
+
+
+3. Start the HDFS
+
+sbin/start-dfs.sh 
+
+
+4. Start the YARN
+
+sbin/start-yarn.sh
+
+
+5. To see the results, we need jps
+
+jps
+
+On psuedo, we can see:
+
+Jps
+NameNode
+SecondaryNameNode
+ResourceManager
+DataNode
+NodeManager
+
+======================
+<<< Create Java Files >>>
+======================
+
+vim WordCount.java
+vim WordPair.java
+vim RelativeFrequency.java
+
+======================
+<<< Compile and Run >>>
+======================
+cd hadoop-2.6.5
+________________________________________
+1. Create classes directory (good for organizing):
+
+mkdir wiki_classes
+cd wiki_classes
+javac -cp $(hadoop classpath):. WordCount.java
+javac -cp $(hadoop classpath):. WordPair.java
+javac -cp $(hadoop classpath):. RelativeFrequency.java
+
+jar -cvf wiki.jar 
+______________________________________________
+2. Stay in the new directory and send input file into HDFS:
+
+hadoop fs -mkdir -p /user/ubuntu/wiki
+hadoop fs -put /home/ubuntu/hadoop-2.6.5/top100.txt /user/ubuntu/wiki
+____________________________________________________________
+3. Run Hadoop job from the same directory as the wiki.jar file directory:
+
+hadoop jar wiki.jar WordCount /user/ubuntu/wiki/top100.txt /user/ubuntu/wiki-output
+_________________________
+4. Check output from anywhere:
+
+hadoop fs -cat /user/ubuntu/wiki-output/part-r-*
+
+_____________________________________________
+Package and move zipped file
+##############################################
+1. Compress files on VM instance
+
+cd ~
+tar -czvf hadoop_project.tar.gz hadoop-2.6.5
+
+2. SSH from local to VM directory: will be prompted to enter your VM's password. After entering the password, the file transfer will start. Once the transfer is completed, you will find hadoop_project.tar.gz in your current directory.
+
+If you are using a Windows machine, you might need an SCP client like WinSCP or you can use the scp command if you have Git Bash or WSL installed.
+
+Then we are done with psuedomode.
+
+////////////////\\\\\\\\\\\\\\\////////////////\\\\\\\\\\\\\\\
+\\\\\\\\\\\\\\\\///////////////\\\\\\\\\\\\\\\\///////////////
+
+HW # 7 - Fully Distributed Implementation
+___________________________________
+
+###################################
+Passphrase-less SSH
+###################################
+
+1. Open Putty to connect to 2 instances.
+2. Generate a pair of authentication keys on each instance using:
+
+ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+
+3. Append each instance's public key(id_rsa.pub) to other instances' authorized_keys
+
+cat ~/.ssh/id_rsa.pub
+
+vim ~/.ssh/authorized_keys
+
+
+=========MINE==================
+private namenode
+private datanode
+++++++++++++++++++++++++++++++
+
+copy the public key of all these instances. paste these public keys into the authorized_keys
+
+4. For each instance:
+sudo vim /etc/hosts
+
+add the content:
+
+==============MINE================
+172.31.94.35 master
+172.31.81.208 slave1
+====================================
+
+5. Then try ssh slave1 for example, we are done.
+
+##################################################
+hadoop installation on namenode and datanodes
+##################################################
+
+1. Ubuntu don't have java. Install java above
+
+sudo apt-get update
+sudo apt-get install openjdk-8-jdk
+
+Here you could use the follow command to see the java home path
+ls /usr/lib/jvm
+
+
+vim ~/.bash_profile
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+source ~/.bash_profile
+
+2. Download and install hadoop-2.6.5 on the master node
+cd ~
+
+wget https://archive.apache.org/dist/hadoop/common/hadoop-2.6.5/hadoop-2.6.5.tar.gz
+
+tar -xvzf hadoop-2.6.5.tar.gz 
+
+3. For all instances: add the content by:
+
+vim ~/.bash_profile
+
+export HADOOP_HOME=/home/ubuntu/hadoop-2.6.5
+export PATH=$PATH:$HADOOP_HOME/bin
+export PATH=$PATH:$HADOOP_HOME/sbin
+export HADOOP_MAPRED_HOME=$HADOOP_HOME
+export HADOOP_COMMON_HOME=$HADOOP_HOME
+export HADOOP_HDFS_HOME=$HADOOP_HOME
+export YARN_HOME=$HADOOP_HOME
+
+
+source ~/.bash_profile
+
+
+4. Configuration of Hadoop on the master node
+cd hadoop-2.6.5/etc/hadoop/
+
+vim core-site.xml
+
+<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://namenode:9000</value>
+    </property>
+</configuration>
+
+
+vim hdfs-site.xml
+
+<configuration>
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:/home/ubuntu/hadoop-2.6.5/dfs/name</value>
+    </property>
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>file:/home/ubuntu/hadoop-2.6.5/dfs/data</value>
+    </property>
+    <property>
+        <name>dfs.replication</name>
+        <value>3</value>
+    </property>
+</configuration>
+
+vim mapred-site.xml
+
+<configuration>
+    <property>
+        <name>mapreduce.framework.name</name>
+        <value>yarn</value>
+    </property>
+</configuration>
+
+
+vim yarn-site.xml
+
+<configuration>
+     <property>
+         <name>yarn.nodemanager.aux-services</name>
+         <value>mapreduce_shuffle</value>
+     </property>
+     <property>
+         <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+         <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.address</name>
+         <value>master:8032</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.scheduler.address</name>
+         <value>master:8030</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.resource-tracker.address</name>
+         <value>master:8035</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.admin.address</name>
+         <value>master:8033</value>
+     </property>
+     <property>
+         <name>yarn.resourcemanager.webapp.address</name>
+         <value>master:8088</value>
+     </property>
+</configuration>
+
+
+vim hadoop-env.sh
+
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export HADOOP_PREFIX=/home/ubuntu/hadoop-2.6.5 
+
+export HADOOP_CONF_DIR=/home/ubuntu/hadoop-2.6.5/etc/hadoop/
+export HADOOP_HOME=/home/ubuntu/hadoop-2.6.5
+
+export CLASSPATH=$CLASSPATH:$HADOOP_HOME/share/hadoop/*/lib/*.jar
+export CLASSPATH=$CLASSPATH:$HADOOP_HOME/share/hadoop/*/*.jar
+
+
+source hadoop-env.sh
+
+vim slaves
+slave1
+
+
+vim master
+master
+
+5. Then we need to copy the configuration to the slaves:
+cd ~
+
+scp -r hadoop-2.6.5 slave1:~
+
+
+Then we are done with the configuration.
+
+##################################################
+Start Hadoop and Test
+##################################################
+
+1. Change to hadoop directory
+cd hadoop-2.6.5
+
+2. Fist we need to format the namenode:
+
+bin/hdfs namenode -format
+
+3. Start the HDFS
+
+sbin/start-dfs.sh 
+
+4. Start the YARN
+
+sbin/start-yarn.sh
+
+5. To see the results, we need jps
+directly type:
+jps
+
+On namenode, we can see:
+Jps
+NameNode
+SecondaryNameNode
+ResourceManager
+
+On datanode, we can see:
+Jps
+DataNode
+NodeManager
+
+We already succesfully start hdfs and yarn.
+
++++++++++++++++++++++++++++
+Create Java and Jar files and directory paths.
+
