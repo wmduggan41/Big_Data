@@ -2,6 +2,7 @@ import subprocess
 import time
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Hadoop command to run the job
 # Adjust this to your own job and arguments
@@ -31,6 +32,8 @@ df = pd.DataFrame(data, columns=['Key', 'Value'])
 df['Value'] = pd.to_numeric(df['Value'])
 
 # Plotting
-# Adjust this to plot the graph you want
-df.hist(column='Value', bins=20)
+# Using seaborn for a more aesthetic plot
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=df, x='Key', y='Value')
+plt.title('Scatterplot of Keys and Values')
 plt.show()
