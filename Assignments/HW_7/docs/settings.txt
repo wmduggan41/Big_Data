@@ -1,0 +1,77 @@
+Psuedo Instance type
+t3.medium
+Elastic IP addresses
+–
+Auto-assigned IP address
+–
+VPC ID
+ vpc-06a2625c68129e5a7 
+AWS Compute Optimizer finding
+Opt-in to AWS Compute Optimizer for recommendations.
+_
+Number of vCPUs
+2
+Capacity reservation
+Info
+Capacity Reservation ID
+–
+Capacity Reservation setting
+open
+Accelerators
+Info
+Elastic Graphics ID
+–
+Storage
+1x30GiB
+
+////////\\\\\\\\
+
+Fully Distributed Instance type
+t3.medium
+Elastic IP addresses
+–
+Auto-assigned IP address
+–
+Number of vCPUs
+2
+Capacity reservation
+Info
+Capacity Reservation ID
+–
+Capacity Reservation setting
+open
+Accelerators
+Info
+Elastic Graphics ID
+–
+Storage
+3x10GiB
+
+//////\\\\\\
+
+#Mapper Input and Output key and value
+Input Key: LongWritable
+Input Value: Text
+Output Key: Text
+Output Value: Text
+
+#Reducer 1 Input and Output key and value
+Input Key: Text
+Input Value: Text
+Output Key: Text
+Output Value: Text
+
+#Reducer 2 Input and Output key and value
+Input Key: Text
+Input Value: Text
+Output Key: Text
+Output Value: Text
+
+#Psuedo Distributed Mode - 1 instance
+#Fully Distributed Mode - 2 instances
+
+#Execution time in Pseudo Distributed Mode: 10 minutes 18 seconds
+#Execution time in Fully Distributed Mode: Did not finish
+
+
+
